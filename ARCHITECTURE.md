@@ -99,7 +99,7 @@ Each adapter implements the `JobSourceAdapter` interface (`src/lib/sources/types
 
 ```ts
 interface JobSourceAdapter {
-  id: string                 // "greenhouse", "lever", "ashby", "manual-import", "mock"
+  id: string                 // "greenhouse", "lever", "ashby", "workable", "smartrecruiters", "manual-import", "mock"
   displayName: string
   automatable: boolean       // can we submit applications programmatically here?
   legalBasis: string         // one-line note on why this adapter is allowed
@@ -112,9 +112,11 @@ interface JobSourceAdapter {
 | Greenhouse | `boards-api.greenhouse.io/v1/boards/{token}/jobs` — public documented API | **Implemented, real** |
 | Lever | `api.lever.co/v0/postings/{org}?mode=json` — public documented API | **Implemented, real** |
 | Ashby | `api.ashbyhq.com/posting-api/job-board/{org}` — public documented API | **Implemented, real** |
+| Workable | `apply.workable.com/api/v1/widget/accounts/{account}` — public job board widget API | **Discovery implemented, real.** `automatable: false` — no submission filler written/verified yet, so matches flow through "prepare everything, human submits" (like Manual Import). |
+| SmartRecruiters | `api.smartrecruiters.com/v1/companies/{company}/postings` — public documented Posting API (per-company; only works where the customer enabled the public feed) | **Discovery implemented, real.** `automatable: false` for the same reason as Workable above. |
 | Manual Import | User pastes a job URL; adapter fetches that single page (respecting `robots.txt`) and an AI extraction step structures it | **Implemented, real** |
 | Mock/demo | Deterministic fixture generator used for seeding and the end-to-end test | **Implemented, real** |
-| LinkedIn / Indeed / Wellfound / Otta / Google Jobs | Require authenticated sessions, are explicitly disallowed by ToS from automated scraping, and are behind anti-bot systems | **Not automated.** The adapter interface has stub entries that return `NotAutomatable` and point the user at the search URL to paste results via Manual Import instead. This is a deliberate, permanent decision, not a TODO. |
+| LinkedIn / Indeed / Jobberman / Wellfound / Otta / Google Jobs | Require authenticated sessions and/or are explicitly disallowed by ToS from automated scraping, are behind anti-bot systems, or (Jobberman) simply expose no public search API at all | **Not automated.** The adapter interface has stub entries that return `NotAutomatable` and point the user at the search URL to paste results via Manual Import instead. This is a deliberate, permanent decision, not a TODO. |
 
 Adding a new adapter = implementing the interface and registering it in
 `src/lib/sources/registry.ts`. No other code changes needed.

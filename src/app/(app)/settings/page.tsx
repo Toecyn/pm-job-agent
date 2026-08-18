@@ -117,7 +117,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardTitle>Job sources</CardTitle>
-        <p className="mt-1 text-xs text-slate-500">Greenhouse, Lever, and Ashby are polled directly via their public job-board APIs — add the company board tokens you want watched.</p>
+        <p className="mt-1 text-xs text-slate-500">Greenhouse, Lever, Ashby, Workable, and SmartRecruiters are polled directly via their public job-board APIs — add the company board tokens you want watched.</p>
         <form action={addWatchedBoardAction} className="mt-3 flex flex-wrap items-end gap-2">
           <label className="text-sm">
             <span className="block text-slate-700">Source</span>
@@ -125,6 +125,8 @@ export default async function SettingsPage() {
               <option value="greenhouse">Greenhouse</option>
               <option value="lever">Lever</option>
               <option value="ashby">Ashby</option>
+              <option value="workable">Workable</option>
+              <option value="smartrecruiters">SmartRecruiters</option>
             </select>
           </label>
           <LabeledInput label="Board token / org slug" name="token" />

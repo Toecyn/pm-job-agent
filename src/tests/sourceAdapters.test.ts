@@ -4,27 +4,29 @@ import { analyzeJobDescription, detectConflictingExperienceRange } from "@/lib/n
 
 describe("Job source adapter registry (brief §3-4)", () => {
   it("registers every documented source id", () => {
-    for (const id of ["greenhouse", "lever", "ashby", "manual-import", "mock"]) {
+    for (const id of ["greenhouse", "lever", "ashby", "workable", "smartrecruiters", "manual-import", "mock"]) {
       expect(adapterRegistry[id]).toBeDefined()
     }
   })
 
-  it("marks Greenhouse/Lever/Ashby as automatable and manual-import as not", () => {
+  it("marks Greenhouse/Lever/Ashby as automatable; Workable/SmartRecruiters/manual-import are search-only (no submission filler yet)", () => {
     expect(adapterRegistry.greenhouse.automatable).toBe(true)
     expect(adapterRegistry.lever.automatable).toBe(true)
     expect(adapterRegistry.ashby.automatable).toBe(true)
+    expect(adapterRegistry.workable.automatable).toBe(false)
+    expect(adapterRegistry.smartrecruiters.automatable).toBe(false)
     expect(adapterRegistry["manual-import"].automatable).toBe(false)
   })
 
-  it("never automates LinkedIn/Indeed/Wellfound/Otta/Google Jobs — deliberate, documented restraint (brief §3, §49)", () => {
+  it("never automates LinkedIn/Indeed/Jobberman/Wellfound/Otta/Google Jobs — deliberate, documented restraint (brief §3, §49)", () => {
     const ids = explainedNonAutomatableSources.map((s) => s.id)
-    for (const id of ["linkedin", "indeed", "wellfound", "otta", "google-jobs"]) {
+    for (const id of ["linkedin", "indeed", "jobberman", "wellfound", "otta", "google-jobs"]) {
       expect(ids).toContain(id)
       expect(adapterRegistry[id]).toBeUndefined() // not a real, callable adapter
     }
   })
 
-  it("Greenhouse/Lever/Ashby return no postings and make no network calls when no boards are configured (reliability: never crash on empty config)", async () => {
+  it("Greenhouse/Lever/Ashby/Workable/SmartRecruiters return no postings and make no network calls when no boards are configured (reliability: never crash on empty config)", async () => {
     for (const adapter of pollableAdapters.filter((a) => a.id !== "mock")) {
       const result = await adapter.search({
         titles: [],

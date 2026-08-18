@@ -76,10 +76,14 @@ Add company board tokens on **Settings → Job sources**:
 - **Greenhouse**: the token in `boards.greenhouse.io/<token>`
 - **Lever**: the org slug in `jobs.lever.co/<org>`
 - **Ashby**: the org name in `jobs.ashbyhq.com/<org>`
+- **Workable**: the account slug in `apply.workable.com/<account>`
+- **SmartRecruiters**: the company identifier in `jobs.smartrecruiters.com/<company>` (only works for companies with the public postings feed enabled)
 
-Then click **Run search now**. For companies on other platforms, use
-**Manual Import** (paste the job URL — works for a single page you found
-yourself, including a LinkedIn/Indeed listing your browser can already load).
+Then click **Run search now**. For boards without a public search API —
+LinkedIn, Indeed, Jobberman, Wellfound, Otta, Google Jobs, or literally any
+other company career page — use **Manual Import** instead (paste the job URL;
+works for a single page you found yourself, including a login-walled listing
+your browser can already load).
 
 ### Trying it without any real company boards configured
 

@@ -272,7 +272,7 @@ model JobSourceRecord {
 // Managed from Settings > Sources in the dashboard.
 model WatchedBoard {
   id      String  @id @default(cuid())
-  source  String // greenhouse | lever | ashby
+  source  String // greenhouse | lever | ashby | workable | smartrecruiters
   token   String // board token / org slug used in that source's API URL
   label   String // human-readable company name shown in the UI
   enabled Boolean @default(true)

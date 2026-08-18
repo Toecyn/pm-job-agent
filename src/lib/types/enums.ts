@@ -145,24 +145,27 @@ export const sourceIds = [
   "greenhouse",
   "lever",
   "ashby",
+  "workable",
+  "smartrecruiters",
   "manual-import",
   "mock",
   "linkedin",
   "indeed",
+  "jobberman",
   "wellfound",
   "otta",
-  "workable",
-  "smartrecruiters",
   "google-jobs",
 ] as const
 export const SourceId = z.enum(sourceIds)
 export type SourceId = z.infer<typeof SourceId>
 
-// Sources whose ToS/anti-bot posture means we never automate discovery or
-// submission there — see ARCHITECTURE.md §4 and §15.
+// Sources whose ToS/anti-bot posture (or, for Jobberman, simple absence of
+// any public search API) means we never automate discovery or submission
+// there — see ARCHITECTURE.md §4 and §15.
 export const nonAutomatableSources: readonly string[] = [
   "linkedin",
   "indeed",
+  "jobberman",
   "wellfound",
   "otta",
   "google-jobs",
