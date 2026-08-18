@@ -1,7 +1,12 @@
 /**
- * CLI alternative to the login page's first-run bootstrap — useful in
- * Docker/production where you don't want to expose password creation over
- * HTTP. Usage: npm run auth:set-password -- "your-password-here"
+ * CLI alternative to the login page's first-run bootstrap. Computes the
+ * AUTH_PASSWORD_HASH value and always prints it — useful both in
+ * Docker/local dev (where it also patches .env directly) and for a
+ * read-only deployment like Vercel, where you generate the hash here and
+ * paste it into the host's environment variables yourself (the password
+ * itself never has to touch that host at all).
+ *
+ * Usage: npm run auth:set-password -- "your-password-here"
  */
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -16,6 +21,8 @@ async function main() {
   }
 
   const hash = hashPassword(password)
+  console.log(`\nAUTH_PASSWORD_HASH="${hash}"\n`)
+
   const envPath = path.join(process.cwd(), ".env")
   let content = ""
   try {
@@ -28,8 +35,12 @@ async function main() {
     ? content.replace(/^AUTH_PASSWORD_HASH=.*$/m, `AUTH_PASSWORD_HASH="${hash}"`)
     : content + `\nAUTH_PASSWORD_HASH="${hash}"\n`
 
-  await fs.writeFile(envPath, content, "utf8")
-  console.log("Password hash written to .env. Restart the server for it to take effect.")
+  try {
+    await fs.writeFile(envPath, content, "utf8")
+    console.log("Also written to your local .env (restart the dev server for it to take effect).")
+  } catch {
+    console.log("Could not write to a local .env here — copy the value printed above into your host's environment variables instead.")
+  }
 }
 
 main()
