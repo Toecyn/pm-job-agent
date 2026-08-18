@@ -2,6 +2,8 @@ import { nonAutomatableSources } from "@/lib/types/enums"
 import { greenhouseAdapter } from "./greenhouse"
 import { leverAdapter } from "./lever"
 import { ashbyAdapter } from "./ashby"
+import { workableAdapter } from "./workable"
+import { smartRecruitersAdapter } from "./smartrecruiters"
 import { manualImportAdapter } from "./manualImport"
 import { mockAdapter } from "./mock"
 import type { JobSourceAdapter } from "./types"
@@ -15,12 +17,21 @@ export const adapterRegistry: Record<string, JobSourceAdapter> = {
   greenhouse: greenhouseAdapter,
   lever: leverAdapter,
   ashby: ashbyAdapter,
+  workable: workableAdapter,
+  smartrecruiters: smartRecruitersAdapter,
   "manual-import": manualImportAdapter,
   mock: mockAdapter,
 }
 
 /** Adapters a scheduled search run should actually poll (manual-import is user-triggered only). */
-export const pollableAdapters: JobSourceAdapter[] = [greenhouseAdapter, leverAdapter, ashbyAdapter, mockAdapter]
+export const pollableAdapters: JobSourceAdapter[] = [
+  greenhouseAdapter,
+  leverAdapter,
+  ashbyAdapter,
+  workableAdapter,
+  smartRecruitersAdapter,
+  mockAdapter,
+]
 
 /**
  * Sources we deliberately never automate (brief §3) — surfaced in the
