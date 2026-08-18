@@ -9,6 +9,13 @@ import { audit } from "@/lib/audit/logger"
 
 export interface LoginState {
   error?: string
+  /**
+   * Set instead of redirecting when the password hash couldn't be persisted
+   * to disk (e.g. a read-only serverless filesystem like Vercel's) — the
+   * caller pastes this into their host's AUTH_PASSWORD_HASH env var and
+   * redeploys instead.
+   */
+  hashToCopy?: string
 }
 
 const ENV_PATH = path.join(process.cwd(), ".env")
@@ -45,7 +52,22 @@ export async function bootstrapPasswordAction(_prev: LoginState, formData: FormD
   if (password !== confirm) return { error: "Passwords do not match." }
 
   const email = process.env.AUTH_USER_EMAIL ?? "you@example.com"
-  await persistPasswordHash(hashPassword(password))
+  const hash = hashPassword(password)
+
+  let persistedToDisk = true
+  try {
+    await persistPasswordHash(hash)
+  } catch {
+    // Read-only filesystem — common on serverless hosts (Vercel, etc). Hand the
+    // computed hash back instead of crashing; the caller sets it as an env var.
+    persistedToDisk = false
+  }
+
+  if (!persistedToDisk) {
+    await audit("auth.password_bootstrap_requires_env_var", "User", email)
+    return { hashToCopy: hash }
+  }
+
   await setSessionCookie(email)
   await audit("auth.password_bootstrapped", "User", email)
   redirect("/onboarding")
