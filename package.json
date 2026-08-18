@@ -16,19 +16,20 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
+    "db:local-postgres": "tsx scripts/localPostgres.ts",
     "search:run": "tsx scripts/runSearchOnce.ts",
-    "e2e:simulate": "tsx scripts/e2eSimulate.ts",
+    "e2e:simulate": "vitest run src/tests/e2e.simulate.test.ts",
     "auth:set-password": "tsx scripts/setPassword.ts"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "better-sqlite3": "^13.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.31.0",
     "next": "16.3.1",
+    "pg": "^8.23.0",
     "playwright": "^1.62.1",
     "prisma": "^7.9.1",
     "react": "19.2.8",
@@ -40,8 +41,10 @@
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "tailwindcss": "^4",
@@ -54,7 +57,6 @@
     "esbuild@0.28.2": true,
     "prisma@7.9.1": true,
     "unrs-resolver@1.12.2": true,
-    "better-sqlite3@12.11.1": true,
-    "better-sqlite3@13.0.3": true
+    "@embedded-postgres/windows-x64@18.4.0-beta.17": true
   }
 }

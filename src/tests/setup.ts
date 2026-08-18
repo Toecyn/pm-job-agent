@@ -1,31 +1,17 @@
-import { execSync } from "node:child_process"
-import path from "node:path"
-import fs from "node:fs"
 import { beforeEach } from "vitest"
+import { TEST_DATABASE_URL } from "./globalSetup"
 
 // Hermetic test environment — deliberately does NOT load the developer's
 // .env, so tests never depend on (or clobber) real local settings like
-// MOCK_SOURCE_ENABLED or a configured AI provider.
-const TEST_DB_PATH = path.join(__dirname, "..", "..", "prisma", "test.db")
-process.env.DATABASE_URL = `file:${TEST_DB_PATH}`
+// MOCK_SOURCE_ENABLED or a configured AI provider. The Postgres instance
+// itself (start, migrate) is handled once for the whole run by
+// globalSetup.ts — this file just points every test file's Prisma client at
+// it and resets tables between tests.
+process.env.DATABASE_URL = TEST_DATABASE_URL
 process.env.NEXTAUTH_SECRET = "test-secret"
 process.env.AUTH_USER_EMAIL = "test@example.com"
 process.env.AI_PROVIDER = "null"
-// NODE_ENV is already "test" under vitest and is typed read-only — no need to set it.
 
-// Apply migrations to the test database once. `setupFiles` re-runs this
-// module per test file, so skip the (slow, `npx`-spawning) migrate command
-// once the database file already exists — schema changes mid-test-run don't
-// happen, and a stale/partial db is easy to fix by deleting prisma/test.db.
-if (!fs.existsSync(TEST_DB_PATH)) {
-  execSync("npx prisma migrate deploy", {
-    cwd: path.join(__dirname, "..", ".."),
-    env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
-    stdio: "pipe",
-  })
-}
-
-// Import after DATABASE_URL is set so the Prisma client singleton picks it up.
 const { prisma } = await import("@/lib/db/client")
 
 /** FK-safe delete order — children before parents. Keeps every test file isolated. */

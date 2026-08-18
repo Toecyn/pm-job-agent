@@ -1,19 +1,21 @@
 // PM Job Search & Application Agent — database schema
 //
-// Engine note: SQLite by default (zero external services, true "runs locally").
-// To move to PostgreSQL for production: change `provider` below to "postgresql",
-// point DATABASE_URL at a Postgres instance (see docker-compose.yml), then
-// `npx prisma migrate dev`. The schema deliberately avoids Postgres-only features
-// (native enum types, array columns) so both providers work unmodified — enums are
-// modeled as `String` with the allowed values documented above each field, validated
-// at the application layer with zod (see src/lib/types).
+// Engine note: PostgreSQL (required for serverless hosting — see ARCHITECTURE.md
+// §5). Local development can point DATABASE_URL at any real Postgres instance:
+// a hosted one (Neon/Vercel Postgres/Supabase), `docker compose up postgres`, or
+// the zero-install `npm run db:local-postgres` helper (spins up a real, ephemeral
+// Postgres via the `embedded-postgres` devDependency — see scripts/localPostgres.ts).
+// The schema deliberately avoids Postgres-only features (native enum types, array
+// columns) even though it no longer needs to stay SQLite-portable — enums are
+// modeled as `String` with the allowed values documented above each field,
+// validated at the application layer with zod (see src/lib/types).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ---------------------------------------------------------------------------

@@ -37,12 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# prisma / database
-prisma/dev.db
-prisma/dev.db-journal
-prisma/test.db
-prisma/test.db-journal
-prisma/*.sqlite
+# local/embedded Postgres data (npm run db:local-postgres, and the test suite's instance)
+.local-postgres/
+.test-postgres-data/
 
 # playwright
 /test-results/

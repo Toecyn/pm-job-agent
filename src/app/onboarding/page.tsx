@@ -2,6 +2,10 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db/client"
 import { OnboardingForm } from "./OnboardingForm"
 
+// Must never be statically prerendered — it queries the database at request
+// time; see src/app/page.tsx for why.
+export const dynamic = "force-dynamic"
+
 export default async function OnboardingPage() {
   const existing = await prisma.candidateProfile.findFirst()
   if (existing?.onboardingComplete) redirect("/dashboard")

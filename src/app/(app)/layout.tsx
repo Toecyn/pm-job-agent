@@ -3,6 +3,10 @@ import { Nav } from "@/components/Nav"
 import { TopBar } from "@/components/TopBar"
 import { prisma } from "@/lib/db/client"
 
+// Belt-and-braces alongside every child page's own `dynamic = "force-dynamic"`
+// — this layout also queries the database and must never be prerendered.
+export const dynamic = "force-dynamic"
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const unreadCount = await prisma.notification.count({ where: { read: false } })
 

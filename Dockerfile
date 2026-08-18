@@ -1,12 +1,11 @@
 # Multi-stage build for the PM Job Search & Application Agent.
-# Ships with the default SQLite datastore (see ARCHITECTURE.md §5) so the
-# container is genuinely self-contained — no external database required.
+# Uses PostgreSQL (see ARCHITECTURE.md §5) — docker-compose.yml runs a
+# `postgres` service alongside this image; set DATABASE_URL to point at any
+# other Postgres instance if you're not using compose.
 
 FROM node:20-bookworm-slim AS base
-# better-sqlite3 needs build tools to compile its native binding; Playwright
-# needs the same base OS libraries as the browsers it will download.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ openssl ca-certificates \
+    openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
@@ -18,13 +17,15 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# No DATABASE_URL needed here — `prisma generate` only reads the schema
+# file, and every page that queries the database is marked
+# `dynamic = "force-dynamic"`, so `next build` never touches a real DB.
 RUN npx prisma generate
 RUN npm run build
 
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV DATABASE_URL="file:/data/prod.db"
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
@@ -34,10 +35,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts ./scripts
 
-# Persistent volume for the SQLite database and any locally-saved automation
-# screenshots — see docker-compose.yml.
-VOLUME ["/data"]
-RUN mkdir -p /data screenshots/agent-runs
+# Persistent volume for locally-saved automation screenshots only — the
+# database itself lives in Postgres, not on this container's disk.
+VOLUME ["/app/screenshots"]
+RUN mkdir -p screenshots/agent-runs
 
 EXPOSE 3000
 

@@ -140,14 +140,25 @@ See `prisma/schema.prisma` for the full, authoritative schema. Summary of major 
 - `AuditLog` — append-only.
 - `Settings` — all configurable thresholds/weights/titles/locations (§43).
 
-**Database engine note:** the brief's preferred stack is PostgreSQL. This build ships
-with **SQLite** as the default `DATABASE_URL` so that `npm install && npm run db:setup &&
-npm run dev` works with zero external services — matching the explicit "runnable
-locally" requirement (§51) in an environment without Docker/Postgres available. The
-schema intentionally avoids Postgres-only features (native enums, arrays) so switching
-`provider = "sqlite"` → `"postgresql"` in `prisma/schema.prisma` plus updating
-`DATABASE_URL` is the entire migration. `docker-compose.yml` ships a Postgres+Redis
-stack for that path.
+**Database engine note:** the brief's preferred stack is PostgreSQL, and this build
+uses it exclusively — not SQLite. An earlier revision of this project defaulted to a
+local SQLite file for the "runnable locally" requirement (§51), but SQLite fundamentally
+cannot work on serverless hosts like Vercel: their filesystem is read-only outside
+`/tmp`, `/tmp` itself is ephemeral and not shared across function instances, and
+concurrent invocations wouldn't share state at all. The database connects via
+`@prisma/adapter-pg` (`src/lib/db/client.ts`), configured entirely through
+`DATABASE_URL`. The schema still intentionally avoids Postgres-only modeling features
+(native enum types, array columns) — not for portability to another provider, but
+because a `String` + zod-validated-at-the-application-layer approach (see
+`src/lib/types`) keeps the allowed values self-documenting in one place rather than
+split between the schema and application code.
+
+"Runnable locally" (§51) is still zero-account, zero-Docker via `npm run
+db:local-postgres` (a real Postgres binary via the `embedded-postgres` devDependency —
+see `scripts/localPostgres.ts`), or `docker compose up postgres` if you prefer Docker,
+or point `DATABASE_URL` at any hosted Postgres (Neon, Vercel Postgres, Supabase, ...) —
+the same variable Vercel needs set in its project environment variables for a real
+deployment.
 
 ## 6. Job posted-date handling (brief §48)
 

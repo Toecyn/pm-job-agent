@@ -38,13 +38,21 @@ Read `ARCHITECTURE.md` §15 for the short, explicit list of what's
 intentionally **not** built (LinkedIn/Indeed scraping, CAPTCHA bypass, live
 Slack/Telegram delivery) and why.
 
-## Quick start (local, zero external services)
+## Quick start
 
-Requires Node.js 20.9+.
+Requires Node.js 20.9+ and a PostgreSQL database (required — see
+`ARCHITECTURE.md` §5; serverless hosts like Vercel have no writable/
+persistent filesystem, so this can't default to a local SQLite file). Zero
+accounts/Docker needed for local dev though — `npm run db:local-postgres`
+runs a real Postgres binary for you.
 
 ```bash
 npm install
 cp .env.example .env
+
+# In a second terminal, leave this running:
+npm run db:local-postgres
+
 npm run db:migrate
 npm run db:seed
 npm run dev
@@ -56,8 +64,10 @@ onboarding profile wizard — or, since `npm run db:seed` already created an
 example profile + career evidence + settings, you can skip straight to the
 dashboard and edit everything from Settings / Career Evidence instead.
 
-The database is SQLite by default (`prisma/dev.db`) — nothing else to
-install. See `ARCHITECTURE.md` §5 for the PostgreSQL migration path.
+Prefer Docker, or already have a Postgres instance (Neon, Vercel Postgres,
+Supabase, your own)? Skip `db:local-postgres` and point `DATABASE_URL` in
+`.env` at it instead — that's also what you'll set as an environment
+variable in your Vercel project for a real deployment.
 
 ### Seeing real jobs
 
@@ -141,7 +151,10 @@ npm test
 ```
 
 `npm test` runs the full suite (84 tests, `src/tests/*.test.ts`) against a
-dedicated `prisma/test.db`, covering deduplication, the 24h/initial search
+dedicated, fully ephemeral Postgres instance that spins up and tears down
+automatically for the test run (`src/tests/globalSetup.ts`, via the same
+`embedded-postgres` package as `db:local-postgres` — no separate database
+needed to run tests), covering deduplication, the 24h/initial search
 window logic, fit/quality/priority scoring (including the "missing a
 preferred qualification never zeroes the score" and "missing a required
 qualification is flagged, not auto-rejected" rules), CV tailoring + evidence
@@ -155,22 +168,41 @@ exceptional-fit role, a missing-qualification role, and a work-authorization
 blocker) through the entire real pipeline and asserts every stage behaves
 correctly — this is the brief §53 acceptance test.
 
+## Deploying to Vercel
+
+1. Provision a Postgres database (Vercel Postgres, Neon, and Supabase all
+   have generous free tiers) and copy its connection string.
+2. In the Vercel project's Settings → Environment Variables, set at minimum:
+   `DATABASE_URL`, `AUTH_USER_EMAIL`, `NEXTAUTH_SECRET` (a long random
+   string), `ENCRYPTION_KEY` (`openssl rand -hex 32`). Everything else in
+   `.env.example` is optional.
+3. Deploy. `npm run build` (`prisma generate && next build`) runs
+   automatically — every page that touches the database is marked
+   `dynamic = "force-dynamic"`, so the build itself never needs DB access,
+   only the running app does.
+4. Run `npx prisma migrate deploy` once against the production
+   `DATABASE_URL` (locally, or as a one-off Vercel deployment step) to
+   create the schema, then visit the deployed URL to set your password and
+   complete onboarding.
+5. Browser automation (`AUTOMATION_ENABLED`) won't work on Vercel — Chromium
+   isn't installed and serverless functions have execution time limits
+   unsuited to a real browser session. Leave it `false` there; run it from a
+   normal server/container instead if you want it.
+
 ## Docker
 
 ```bash
 docker compose up --build
 ```
 
-Runs the app with its SQLite database in a named volume — no other services
-required. See `docker-compose.yml` for the optional Postgres profile and
-`ARCHITECTURE.md` §5 for what switching to it actually involves.
+Runs the app plus a Postgres container together — nothing else required.
 
 ## Project structure
 
 ```
-prisma/schema.prisma       Database schema (see the header comment for the
-                            SQLite/Postgres portability note)
+prisma/schema.prisma       Database schema (PostgreSQL)
 prisma/seed.ts              Example candidate profile + career evidence + settings
+scripts/localPostgres.ts    Zero-install local Postgres for dev (npm run db:local-postgres)
 src/lib/sources/            Job source adapters + registry
 src/lib/normalize/          Title taxonomy, requirement extraction, normalizer
 src/lib/dedup/               Cross-source duplicate detection
