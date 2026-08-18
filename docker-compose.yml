@@ -1,0 +1,43 @@
+# Default: just the app, using the built-in SQLite datastore (see
+# ARCHITECTURE.md §5) — `docker compose up --build` is the entire setup.
+#
+# A `postgres` service is included under the `postgres` profile for the
+# production migration path described in ARCHITECTURE.md §5. Enabling it is
+# NOT a one-line flip: it also requires changing prisma/schema.prisma's
+# datasource provider to "postgresql" and swapping the driver adapter in
+# src/lib/db/client.ts from @prisma/adapter-better-sqlite3 to
+# @prisma/adapter-pg. Bring it up with:
+#   docker compose --profile postgres up --build
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Overrides whatever DATABASE_URL is in .env so the container always
+      # uses its persistent volume rather than a path from the host.
+      DATABASE_URL: "file:/data/prod.db"
+    volumes:
+      - app_data:/data
+      - agent_screenshots:/app/screenshots
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: pmjobagent
+      POSTGRES_PASSWORD: pmjobagent
+      POSTGRES_DB: pmjobagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  agent_screenshots:
+  postgres_data:

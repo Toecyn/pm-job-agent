@@ -1,0 +1,618 @@
+// PM Job Search & Application Agent — database schema
+//
+// Engine note: SQLite by default (zero external services, true "runs locally").
+// To move to PostgreSQL for production: change `provider` below to "postgresql",
+// point DATABASE_URL at a Postgres instance (see docker-compose.yml), then
+// `npx prisma migrate dev`. The schema deliberately avoids Postgres-only features
+// (native enum types, array columns) so both providers work unmodified — enums are
+// modeled as `String` with the allowed values documented above each field, validated
+// at the application layer with zod (see src/lib/types).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Candidate profile & career evidence (brief §4, §5)
+// ---------------------------------------------------------------------------
+
+model CandidateProfile {
+  id    String @id @default(cuid())
+  email String @unique
+
+  fullName     String
+  phone        String?
+  location     String? // "City, Country"
+  portfolioUrl String?
+  githubUrl    String?
+  linkedinUrl  String?
+
+  // Work authorization / location strategy (brief §38) — encrypted at rest
+  workAuthorizationEnc   String? // AES-GCM ciphertext of { country, status, sponsorshipNeeded, details }
+  preferredCountriesJson String  @default("[]") // string[]
+  preferredCitiesJson    String  @default("[]") // string[]
+  workModePreference     String  @default("any") // remote | hybrid | onsite | any
+  willingToRelocate      Boolean @default(false)
+
+  yearsExperience   Float?
+  currentRole       String?
+  currentCompany    String?
+  previousRolesJson String  @default("[]") // string[]
+  industriesJson    String  @default("[]") // string[]
+  productAreasJson  String  @default("[]") // string[]
+
+  technicalSkillsJson String @default("[]")
+  pmSkillsJson        String @default("[]")
+  dataSkillsJson      String @default("[]")
+  aiMlExperienceJson  String @default("[]")
+  leadershipJson      String @default("[]")
+
+  educationJson      String @default("[]")
+  certificationsJson String @default("[]")
+
+  // Compensation & availability — comp fields encrypted at rest
+  preferredCompEnc String? // AES-GCM ciphertext of { min, max, currency, period }
+  noticePeriodDays Int?
+  availability     String?
+
+  targetSeniorityJson     String @default("[]")
+  targetCompanySizeJson   String @default("[]")
+  targetIndustriesJson    String @default("[]")
+  companiesPrioritizeJson String @default("[]")
+  companiesExcludeJson    String @default("[]")
+
+  masterCvRaw        String? // raw text extracted from uploaded CV
+  masterCvFileName   String?
+  masterCvParsedJson String? // structured parse output, reviewable by user
+
+  onboardingComplete Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidence     CareerEvidence[]
+  cvVariants   CvVariant[]
+  applications Application[]
+  tailoredCvs  TailoredCV[]
+  coverLetters CoverLetter[]
+
+  @@map("candidate_profiles")
+}
+
+// Evidence type — see brief §5. One of:
+// job | responsibility | achievement | metric | leadership | technical | ai | data
+// | analytics | discovery | delivery | experimentation | customer_research | roadmap
+// | gtm | executive_comm | failure_recovery | certification | award | publication
+// | education | project
+model CareerEvidence {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  company   String?
+  roleTitle String?
+  startDate DateTime?
+  endDate   DateTime? // null = current
+
+  evidenceType String // see comment above
+  title        String // short label, e.g. "Launched AI-ranked search v2"
+  description  String // full truthful narrative supplied/approved by the user
+
+  metricsJson String @default("[]") // [{label, value, unit}] — only user-supplied numbers, never invented
+  tagsJson    String @default("[]") // industry/skill/product-area/seniority/leadership/technical/ai/data/...
+
+  isVerified Boolean @default(true) // false only if user explicitly marks something as unconfirmed/draft
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bulletSources CvBulletSource[]
+  answerSources ApplicationAnswerSource[]
+
+  @@index([profileId])
+  @@index([evidenceType])
+  @@map("career_evidence")
+}
+
+// key: master | general_pm | senior_pm | ai_pm | data_pm | technical_pm | product_strategy
+model CvVariant {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  key             String
+  label           String
+  summaryTemplate String? // seed professional summary for this variant
+  contentJson     String // structured base content { sections: [...] }
+  isMaster        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, key])
+  @@map("cv_variants")
+}
+
+// ---------------------------------------------------------------------------
+// Companies & jobs (brief §6, §21)
+// ---------------------------------------------------------------------------
+
+model Company {
+  id   String @id @default(cuid())
+  name String @unique
+
+  website       String?
+  industry      String?
+  sizeHint      String? // e.g. "51-200", "1000+", "unknown"
+  fundingStatus String? // e.g. "Series B", "Public", "unknown"
+  description   String?
+
+  intelJson      String? // CompanyIntelligence payload (brief §21)
+  intelUpdatedAt DateTime?
+
+  reputationScore Int? // 0-100, part of Job Quality Score
+  excluded        Boolean @default(false) // "companies to exclude"
+  prioritized     Boolean @default(false) // "companies to prioritize"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs Job[]
+
+  @@map("companies")
+}
+
+model Job {
+  id String @id @default(cuid())
+
+  title           String
+  normalizedTitle String
+  titleFamily     String // e.g. product_manager, senior_product_manager, product_owner, ...
+  seniority       String @default("unknown") // mid | senior | lead | principal | group | unknown
+
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  companyName String // denormalized, always present even if Company row not yet created
+
+  location      String?
+  remoteStatus  String  @default("unknown") // remote | hybrid | onsite | unknown
+  countriesJson String  @default("[]")
+
+  salaryMin      Float?
+  salaryMax      Float?
+  salaryCurrency String?
+  salaryPeriod   String? // year | month | hour
+  compConfidence String  @default("unknown") // known | unknown — never invented (brief §39)
+
+  employmentType String  @default("unknown") // full_time | part_time | contract | internship | unknown
+  department     String?
+  hiringManager  String?
+  recruiter      String?
+
+  applicationUrl String
+  originalUrl    String
+
+  source      String // adapter id: greenhouse | lever | ashby | manual-import | mock
+  sourceJobId String
+
+  datePosted           DateTime?
+  datePostedConfidence String    @default("unknown") // known | unknown (brief §48)
+  dateUpdated          DateTime?
+  dateDiscovered       DateTime  @default(now())
+  dateClosing          DateTime?
+
+  description String // raw job description text
+
+  requiredQualificationsJson  String  @default("[]")
+  preferredQualificationsJson String  @default("[]")
+  responsibilitiesJson        String  @default("[]")
+  requiredSkillsJson          String  @default("[]")
+  preferredSkillsJson         String  @default("[]")
+  industryExperienceJson      String  @default("[]")
+  educationRequirements       String?
+  yearsExperienceMin          Float?
+  yearsExperienceMax          Float?
+  techRequirementsJson        String  @default("[]")
+  methodologiesJson           String  @default("[]")
+  leadershipRequirements      String?
+  domainRequirementsJson      String  @default("[]")
+  workAuthRequirements        String?
+  travelRequirements          String?
+  keywordsJson                String  @default("[]")
+  atsKeywordsJson             String  @default("[]")
+
+  rawJson String? // full raw source payload, for audit / re-analysis
+
+  dedupFingerprint String
+  isDuplicateOfId  String?
+  isDuplicateOf    Job?    @relation("Duplicates", fields: [isDuplicateOfId], references: [id])
+  duplicates       Job[]   @relation("Duplicates")
+
+  discardedReason String? // set when a job was filtered out; kept for search-history transparency
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sourceRecords JobSourceRecord[]
+  score         JobScore?
+  tailoredCvs   TailoredCV[]
+  coverLetters  CoverLetter[]
+  applications  Application[]
+
+  @@index([titleFamily])
+  @@index([source])
+  @@index([datePosted])
+  @@index([dedupFingerprint])
+  @@map("jobs")
+}
+
+// Records every source that surfaced a given (deduplicated) job — brief §18.
+model JobSourceRecord {
+  id           String   @id @default(cuid())
+  jobId        String
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  source       String
+  sourceJobId  String
+  sourceUrl    String
+  discoveredAt DateTime @default(now())
+  rawJson      String?
+
+  @@unique([source, sourceJobId])
+  @@map("job_source_records")
+}
+
+// Greenhouse/Lever/Ashby expose one JSON board per company, not a global
+// search — this is the list of company boards the agent polls each run.
+// Managed from Settings > Sources in the dashboard.
+model WatchedBoard {
+  id      String  @id @default(cuid())
+  source  String // greenhouse | lever | ashby
+  token   String // board token / org slug used in that source's API URL
+  label   String // human-readable company name shown in the UI
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([source, token])
+  @@map("watched_boards")
+}
+
+model SearchRun {
+  id String @id @default(cuid())
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String    @default("running") // running | success | partial | failed
+
+  windowStart DateTime
+  windowEnd   DateTime
+
+  sourcesQueriedJson String @default("[]")
+  queriesJson        String @default("[]")
+
+  jobsFound     Int @default(0)
+  jobsNew       Int @default(0)
+  jobsDuplicate Int @default(0)
+  jobsDiscarded Int @default(0)
+
+  errorsJson    String  @default("[]") // [{source, message}]
+  discardedJson String  @default("[]") // [{title, companyName, source, reason}] — brief §41 transparency
+  notes         String?
+
+  @@map("search_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Scoring (brief §7-9)
+// ---------------------------------------------------------------------------
+
+model JobScore {
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  fitScore         Int
+  fitBreakdownJson String // { experienceMatch, seniorityMatch, ... } each 0-100 + notes
+  fitBand          String // exceptional | strong | good | possible | do_not_apply
+
+  qualityScore         Int
+  qualityBreakdownJson String
+
+  priorityScore         Int
+  priorityBreakdownJson String
+
+  reasonsJson  String @default("[]") // human-readable "why this matches"
+  concernsJson String @default("[]") // human-readable potential concerns
+
+  scoredAt DateTime @default(now())
+
+  @@map("job_scores")
+}
+
+// ---------------------------------------------------------------------------
+// Application materials (brief §10-14, §36)
+// ---------------------------------------------------------------------------
+
+model TailoredCV {
+  id        String           @id @default(cuid())
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  baseVariantKey String // which CvVariant this was tailored from
+  contentJson    String // structured sections
+  renderedText   String // ATS-friendly plain text render
+
+  atsScore         Int?
+  atsBreakdownJson String?
+
+  createdAt DateTime @default(now())
+
+  bullets      CvBulletSource[]
+  applications Application[]
+
+  @@map("tailored_cvs")
+}
+
+// Evidence traceability (brief §36): every generated bullet cites its source(s).
+model CvBulletSource {
+  id           String     @id @default(cuid())
+  tailoredCvId String
+  tailoredCv   TailoredCV @relation(fields: [tailoredCvId], references: [id], onDelete: Cascade)
+
+  section    String // e.g. "summary", "core_competencies", "experience:Acme Inc"
+  bulletText String
+
+  sourceEvidenceIdsJson String // string[] of CareerEvidence.id
+  evidence              CareerEvidence @relation(fields: [primaryEvidenceId], references: [id])
+  primaryEvidenceId     String
+
+  confidence     String  @default("verified") // verified | inferred
+  verifierPassed Boolean @default(true) // false => statement was dropped, kept here for audit
+
+  @@map("cv_bullet_sources")
+}
+
+model CoverLetter {
+  id        String           @id @default(cuid())
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  content   String
+  wasNeeded Boolean @default(true) // false if generated speculatively but job didn't require one
+
+  createdAt DateTime @default(now())
+
+  applications Application[]
+
+  @@map("cover_letters")
+}
+
+// ---------------------------------------------------------------------------
+// Applications & state machine (brief §15-20)
+// ---------------------------------------------------------------------------
+
+// status — one of:
+// DISCOVERED | ANALYZED | SCORED | SHORTLISTED | CV_TAILORED | APPLICATION_PREPARED
+// | AWAITING_APPROVAL | APPLIED | ASSESSMENT | RECRUITER_SCREEN | INTERVIEW
+// | FINAL_INTERVIEW | OFFER | REJECTED | WITHDRAWN | GHOSTED
+model Application {
+  id        String           @id @default(cuid())
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   CandidateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  status String @default("DISCOVERED")
+
+  tailoredCvId  String?
+  tailoredCv    TailoredCV?  @relation(fields: [tailoredCvId], references: [id])
+  coverLetterId String?
+  coverLetter   CoverLetter? @relation(fields: [coverLetterId], references: [id])
+
+  validationJson   String? // ApplicationValidator output
+  validationPassed Boolean @default(false)
+
+  approvalStatus String? // pending | approved | rejected | edited | skipped
+  approvalMode   String? // MANUAL | REVIEW | AUTO — mode in effect when prepared
+
+  automationStateJson String? // resumable browser-automation snapshot (brief §33)
+  submittedAt         DateTime?
+  appliedVia          String? // "automated" | "manual"
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers           ApplicationAnswer[]
+  approvalDecisions ApprovalDecision[]
+  followUps         FollowUp[]
+  interviewPrep     InterviewPrepPackage[]
+  statusHistory     ApplicationStatusEvent[]
+
+  @@unique([jobId, profileId]) // brief §18 — hard duplicate-prevention constraint
+  @@map("applications")
+}
+
+model ApplicationStatusEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  fromStatus String?
+  toStatus   String
+  reason     String?
+  actor      String  @default("system") // system | user
+
+  createdAt DateTime @default(now())
+
+  @@map("application_status_events")
+}
+
+model ApplicationAnswer {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  question String
+  answer   String?
+
+  isSensitive      Boolean @default(false) // brief §17
+  requiresApproval Boolean @default(false)
+  wasUserProvided  Boolean @default(false) // answered from predefined user-supplied answers
+
+  charLimit Int?
+
+  createdAt DateTime @default(now())
+
+  sources ApplicationAnswerSource[]
+
+  @@map("application_answers")
+}
+
+model ApplicationAnswerSource {
+  id       String            @id @default(cuid())
+  answerId String
+  answer   ApplicationAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  evidenceId String
+  evidence   CareerEvidence @relation(fields: [evidenceId], references: [id])
+
+  @@map("application_answer_sources")
+}
+
+model ApprovalDecision {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  decision String // approve | reject | edit | skip | blacklist_company | blacklist_role
+  notes    String?
+
+  decidedAt DateTime @default(now())
+
+  @@map("approval_decisions")
+}
+
+model FollowUp {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  kind             String // recruiter_followup | thank_you | status_check
+  dueAt            DateTime
+  status           String   @default("pending") // pending | sent | dismissed
+  suggestedMessage String?
+
+  createdAt DateTime @default(now())
+
+  @@map("follow_ups")
+}
+
+model InterviewPrepPackage {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  contentJson String // company overview, likely questions, STAR stories, questions to ask, etc.
+
+  createdAt DateTime @default(now())
+
+  @@map("interview_prep_packages")
+}
+
+// ---------------------------------------------------------------------------
+// Cross-cutting: notifications, audit, settings, predefined answers
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id       String  @id @default(cuid())
+  type     String // new_exceptional_match | application_ready | applied | recruiter_response | ...
+  severity String  @default("info") // info | success | warning | error
+  title    String
+  message  String
+  metaJson String?
+  read     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String  @id @default(cuid())
+  actor       String  @default("system") // system | user
+  action      String
+  entityType  String
+  entityId    String?
+  detailsJson String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// Predefined answers for sensitive/legally-consequential questions (brief §17).
+// Never auto-generated; only ever set explicitly by the user via Settings UI.
+model PredefinedAnswer {
+  id       String @id @default(cuid())
+  category String // work_authorization | sponsorship | disability | veteran_status | ...
+  question String // canonical question text or pattern
+  answer   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("predefined_answers")
+}
+
+// Singleton row holding all configurable thresholds/weights/lists (brief §43).
+model Settings {
+  id Int @id @default(1)
+
+  jobTitlesJson         String @default("[]")
+  titleSynonymsJson     String @default("{}")
+  targetSenioritiesJson String @default("[\"mid\",\"senior\"]")
+
+  minFitScore       Int    @default(60)
+  minQualityScore   Int    @default(0)
+  fitThresholdsJson String @default("{\"exceptional\":90,\"strong\":80,\"good\":70,\"possible\":60}")
+
+  fitWeightsJson      String @default("{}")
+  qualityWeightsJson  String @default("{}")
+  priorityWeightsJson String @default("{}")
+
+  locationsJson    String @default("[]")
+  countriesJson    String @default("[]")
+  remotePreference String @default("any")
+  industriesJson   String @default("[]")
+
+  approvalMode        String @default("REVIEW") // MANUAL | REVIEW | AUTO
+  autoApplyMinFit     Int    @default(90)
+  autoApplyMinQuality Int    @default(80)
+
+  initialWindowDays   Int    @default(7)
+  overlapMinutes      Int    @default(45)
+  searchFrequencyCron String @default("0 7 * * *")
+
+  notificationPrefsJson String @default("{\"channels\":[\"dashboard\"]}")
+
+  aiProvider String @default("null") // openai | anthropic | null (deterministic fallback)
+  aiModel    String @default("")
+
+  coverLetterPreference String @default("if_required") // always | if_required | never
+  followUpDelayDays     Int    @default(7) // brief §20 — configurable follow-up reminder delay
+
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

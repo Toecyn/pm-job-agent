@@ -32,9 +32,26 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# prisma / database
+prisma/dev.db
+prisma/dev.db-journal
+prisma/test.db
+prisma/test.db-journal
+prisma/*.sqlite
+
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/screenshots/agent-runs/
+
+# generated docs snapshot (not used — bundled node_modules docs are the source)
+.next-docs/
 
 # typescript
 *.tsbuildinfo
